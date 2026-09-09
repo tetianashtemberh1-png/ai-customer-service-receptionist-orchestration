@@ -1,0 +1,268 @@
+{
+  "name": "AI Customer Service - Receptionist Orchestration",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "m",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -1000,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{\"conversation_id\":\"conv-4001\",\"customer_name\":\"Anna Nowak\",\"channel\":\"WHATSAPP\",\"message\":\"Hi, I would like to book an appointment for a consultation next Tuesday afternoon.\",\"requested_service\":\"Consultation\",\"preferred_date\":\"2026-09-15 afternoon\"}}];"
+      },
+      "id": "d",
+      "name": "Test Customer Message",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -800,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const x=$json;const m={conversation_id:(x.conversation_id||'').trim(),customer_name:(x.customer_name||'').trim(),channel:(x.channel||'WEB').toUpperCase(),message:(x.message||'').trim(),requested_service:(x.requested_service||'').trim(),preferred_date:(x.preferred_date||'').trim()};const errors=[];if(!m.conversation_id)errors.push('conversation_id is required');if(!m.customer_name)errors.push('customer_name is required');if(!m.message)errors.push('message is required');if(!['WEB','WHATSAPP','INSTAGRAM','EMAIL'].includes(m.channel))errors.push('supported channel is required');return [{json:{valid:!errors.length,errors,message:m}}];"
+      },
+      "id": "n",
+      "name": "Normalize + Validate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -600,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "v",
+              "leftValue": "={{$json.valid}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "v",
+      "name": "Valid Request?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        -400,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const m=$json.message,t=m.message.toLowerCase();let intent='GENERAL',confidence=.70;if(/book|booking|appointment|available|schedule|visit/.test(t)){intent='BOOKING';confidence=.93}else if(/cancel|reschedule|change.*appointment/.test(t)){intent='RESCHEDULE_OR_CANCEL';confidence=.94}else if(/price|pricing|cost|quote|how much/.test(t)){intent='PRICING';confidence=.91}else if(/refund|complaint|angry|unhappy|terrible|unacceptable/.test(t)){intent='COMPLAINT';confidence=.95}else if(/human|person|manager|agent/.test(t)){intent='HUMAN_REQUEST';confidence=.98}const urgent=/urgent|emergency|immediately|asap|danger|injury/.test(t),sensitive=/refund|complaint|angry|unhappy|manager|legal|emergency|danger|injury/.test(t);const needs_human_review=urgent||sensitive||intent==='COMPLAINT'||intent==='HUMAN_REQUEST'||confidence<.75;let next_action=needs_human_review?'ESCALATE_TO_HUMAN':intent==='BOOKING'?'COLLECT_OR_CONFIRM_BOOKING_DETAILS':intent==='PRICING'?'SEND_APPROVED_PRICING_INFORMATION':'GENERAL_REPLY';let draft_reply=needs_human_review?`Thanks ${m.customer_name}. I\u2019ve flagged your message for a human team member to review.`:intent==='BOOKING'?`Thanks ${m.customer_name}. I can help prepare your booking request. Live availability must be checked before confirmation.`:`Thanks ${m.customer_name}. Your request has been prepared for the next service step.`;return [{json:{...$json,intent,confidence,urgent,needs_human_review,next_action,draft_reply}}];"
+      },
+      "id": "c",
+      "name": "Classify + Orchestrate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const m=$json.message,k=[m.conversation_id,m.channel,m.message].join('|');let h=2166136261;for(let i=0;i<k.length;i++){h^=k.charCodeAt(i);h=Math.imul(h,16777619)}return [{json:{...$json,interaction_id:`interaction_${(h>>>0).toString(16)}`,status:$json.needs_human_review?'HUMAN_REVIEW':'AUTO_READY'}}];"
+      },
+      "id": "b",
+      "name": "Build Service Record",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        40,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "typeValidation": "strict"
+          },
+          "conditions": [
+            {
+              "id": "h",
+              "leftValue": "={{$json.needs_human_review}}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true",
+                "singleValue": true
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "h",
+      "name": "Human Review?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.2,
+      "position": [
+        260,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{status:'queued_for_human_review',interaction_id:$json.interaction_id,intent:$json.intent,next_action:$json.next_action,draft_reply:$json.draft_reply}}];"
+      },
+      "id": "e",
+      "name": "Build Human Escalation",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        -80
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{status:'auto_ready',interaction_id:$json.interaction_id,intent:$json.intent,next_action:$json.next_action,draft_reply:$json.draft_reply}}];"
+      },
+      "id": "a",
+      "name": "Build Auto-ready Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        500,
+        100
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{json:{status:'rejected',http_status:400,errors:$json.errors}}];"
+      },
+      "id": "x",
+      "name": "Build Validation Error",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -180,
+        240
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Test Customer Message",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Test Customer Message": {
+      "main": [
+        [
+          {
+            "node": "Normalize + Validate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize + Validate": {
+      "main": [
+        [
+          {
+            "node": "Valid Request?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Valid Request?": {
+      "main": [
+        [
+          {
+            "node": "Classify + Orchestrate",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Validation Error",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Classify + Orchestrate": {
+      "main": [
+        [
+          {
+            "node": "Build Service Record",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Service Record": {
+      "main": [
+        [
+          {
+            "node": "Human Review?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Human Review?": {
+      "main": [
+        [
+          {
+            "node": "Build Human Escalation",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Auto-ready Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "active": false
+}
