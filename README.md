@@ -1,10 +1,22 @@
- # AI Customer Service / Receptionist Orchestration
+# AI Customer Service / Receptionist Orchestration
 
 > Production-minded portfolio reference implementation for customer-message intake, intent routing, booking preparation, safe response drafting, and human escalation.
 
 **Author:** Tetiana Shtemberh  
 **Role:** AI Automation & Implementation Specialist  
 **Stack:** n8n · JavaScript · Webhooks-ready · REST API-ready · AI/LLM-ready · Human-in-the-loop
+
+---
+
+## Video Demo
+
+▶ **[Watch the full workflow demo on YouTube](https://youtu.be/iHPcw5zlkew)**
+
+The video demonstrates the workflow running in n8n across three execution paths:
+
+- booking request → auto-ready;
+- customer complaint → human review;
+- invalid request → controlled validation rejection.
 
 ---
 
@@ -184,7 +196,7 @@ Build Auto-ready Response
 
 ### Test 2 — Complaint → Human Review
 
-A synthetic customer complaint included dissatisfaction, a refund request, and a request for a manager.
+A synthetic customer complaint included explicit dissatisfaction, complaint language, and a request for a manager.
 
 The workflow correctly followed:
 
@@ -226,7 +238,7 @@ Classification and customer-service orchestration were not executed.
 | Scenario | Expected Result | Tested |
 |---|---|---|
 | Valid booking request | Auto-ready | ✅ |
-| Complaint / refund request | Human review | ✅ |
+| Complaint / sensitive request | Human review | ✅ |
 | Manager / human escalation request | Human review | ✅ |
 | Missing required request data | Validation rejection | ✅ |
 
